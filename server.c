@@ -36,7 +36,6 @@ typedef struct _CustomData {
   GstElement *serverPipeline;
   GstElement *filesrc;
   GstElement *demuxer;
-  GstElement *video_filter;
   GstElement *audio_filter;
   GstElement *audio_queue_1, *video_queue_1;
   GstElement *video_decoder, *audio_decoder;
@@ -72,7 +71,7 @@ int main(int argc, char *argv[]) {
 
   /*static pads*/
   GstPad *video_queue2_srcPad, *audio_queue2_srcPad;
-  GstPad /**udpsink_rtp0_sink, *udpsink_rtp1_sink, */ *udpsink_rtcp0_sink, *udpsink_rtcp1_sink ;
+  GstPad *udpsink_rtcp0_sink, *udpsink_rtcp1_sink ;
   GstPad *udpsrc_rtcp0_src, *udpsrc_rtcp1_src ;
 
   GstBus *bus;
@@ -135,7 +134,6 @@ int main(int argc, char *argv[]) {
   if (tagList) {
     gst_tag_list_foreach (tagList, find_tag_foreach, GINT_TO_POINTER (1));
     gst_tag_list_foreach (tagList, print_tag_foreach, GINT_TO_POINTER (1));
-
   }
   
   /* Create pipeline and attach a callback to it's
@@ -164,7 +162,7 @@ int main(int argc, char *argv[]) {
   }
 
  
-  // data.video_decoder = gst_element_factory_make("jpegdec", "video_decoder");
+  data.video_decoder = gst_element_factory_make("jpegdec", "video_decoder");
   data.audio_decoder = gst_element_factory_make("vorbisdec", "audio_decoder");    
 
   data.audio_queue_1 = gst_element_factory_make("queue", "audio_queue_1");
@@ -172,10 +170,7 @@ int main(int argc, char *argv[]) {
 
   data.audio_queue_2 = gst_element_factory_make("queue", "audio_queue_2");
   data.video_queue_2 = gst_element_factory_make("queue", "video_queue_2");
-/*
-  data.video_sink = gst_element_factory_make("xvimagesink", "video_sink");
-  data.audio_sink = gst_element_factory_make("autoaudiosink","audio_sink");
-*/
+
   data.videorate_controller = gst_element_factory_make("videorate","videorate_controller");
   data.audiorate_controller = gst_element_factory_make("audiorate","audiorate_controller");
 
@@ -195,7 +190,7 @@ int main(int argc, char *argv[]) {
 
 
   /* Check that elements are correctly initialized */
-  if(!(data.serverPipeline && data.filesrc && data.demuxer &&
+  if(!(data.serverPipeline && data.filesrc && data.demuxer && data.audio_decoder && 
        data.audio_queue_1 && data.video_queue_1 && data.audio_queue_2 && data.video_queue_2 && 
        data.videorate_controller && data.audiorate_controller && data.videoPayloader && data.audioPayloader &&
        data.serverRTPBIN && data.udpsink_rtp0 && data.udpsink_rtp1 && data.udpsink_rtcp0 && data.udpsink_rtcp1 &&
@@ -210,18 +205,28 @@ int main(int argc, char *argv[]) {
   g_object_set(data.udpsink_rtp1, "host", clientIP, "port", port_send_rtp_src1 ,NULL);
   g_object_set(data.udpsink_rtcp0, "host", clientIP, "port", port_send_rtcp_src0, NULL);
   g_object_set(data.udpsink_rtcp1, "host", clientIP, "port", port_send_rtcp_src1, NULL);
-  g_object_set(data.udpsrc_rtcp0 , /*"address", serverIP,*/ "port", port_recv_rtcp_sink0 , NULL);
-  g_object_set(data.udpsrc_rtcp1 , /*"address", serverIP,*/ "port", port_recv_rtcp_sink1 , NULL);
+  g_object_set(data.udpsrc_rtcp0 , "port", port_recv_rtcp_sink0 , NULL);
+  g_object_set(data.udpsrc_rtcp1 , "port", port_recv_rtcp_sink1 , NULL);
 
     data.video_caps = gst_caps_new_simple("image/jpeg",
       "framerate", GST_TYPE_FRACTION, 30, 1,
       "width", G_TYPE_INT, 640,
       "height", G_TYPE_INT, 480,
       NULL);
+
+     data.audio_caps = gst_caps_new_simple("audio/x-raw-int",
+      "rate", G_TYPE_INT, 8000,
+      "channels", G_TYPE_INT, 2,
+      "depths", G_TYPE_INT, 16,
+      NULL);
+ 
+
   /* Add elements to the pipeline. This has to be done prior to
    * linking them */
-  gst_bin_add_many(GST_BIN(data.serverPipeline),data.filesrc, data.demuxer, data.audio_queue_1, data.video_queue_1, data.audio_queue_2 , data.video_queue_2 , 
-       data.videorate_controller /*, data.audio_decoder,data.audiorate_controller*/ , data.videoPayloader , data.audioPayloader ,
+  gst_bin_add_many(GST_BIN(data.serverPipeline),data.filesrc, data.demuxer, data.audio_queue_1, 
+       /*data.audio_decoder,data.audiorate_controller,*/
+       data.video_queue_1, data.audio_queue_2 , data.video_queue_2 , 
+       data.videorate_controller, data.videoPayloader , data.audioPayloader ,
        data.serverRTPBIN , data.udpsink_rtp0 , data.udpsink_rtp1 , data.udpsink_rtcp0 , data.udpsink_rtcp1 ,
        data.udpsrc_rtcp0 , data.udpsrc_rtcp1, NULL);
 
@@ -237,29 +242,19 @@ int main(int argc, char *argv[]) {
     gst_object_unref (data.serverPipeline);
     exit(1);
   }
-
-
   if(!gst_element_link_many(data.videorate_controller, data.videoPayloader, data.video_queue_2, NULL))
   {
     g_printerr("videorate and payloader cannot be linked!.\n");
     gst_object_unref (data.serverPipeline);
     exit(1);
   }
-  // if(!gst_element_link_many(data.video_queue_1, data.videorate_controller, data.videoPayloader, data.video_queue_2, NULL))
-  // {
-  //   g_printerr("queue, video_decoder, and videorate cannot be linked!.\n");
-  //   gst_object_unref (data.serverPipeline);
-  //   exit(1);
-  // }
-
-
- if(!gst_element_link_many( data.audio_queue_1/*, data.audio_decoder, data.audiorate_controller*/, data.audioPayloader, data.audio_queue_2,NULL))
+  if(!gst_element_link_many(data.audio_queue_1, data.audioPayloader, data.audio_queue_2, NULL))
   {
-    g_printerr("queue, audio_decoder, audiorate, cannot be linked!.\n");     
+    g_printerr("audio queue and audio decoder cannot be linked!.\n");
     gst_object_unref (data.serverPipeline);
     exit(1);
   }
- 
+
 
   /*manually request pads and link them*/
   //   /*Pads for requesting*/
@@ -272,30 +267,33 @@ int main(int argc, char *argv[]) {
   // GstPad *video_queue2_srcPad, *audio_queue2_srcPad;
   // GstPad *udpsink_rtp0_sink, *udpsink_rtp1_sink, *udpsink_rtcp0_sink, *udpsink_rtcp1_sink ;
   // GstPad *udpsrc_rtcp0_src, *udpsrc_rtcp1_src ;
-  send_rtp_sink_temp = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "send_rtp_sink_%d");
+  g_signal_connect (data.serverRTPBIN, "pad-added", G_CALLBACK (rtpbin_pad_added_handler), &data);
   
-  send_rtp_sink0 = gst_element_request_pad (data.serverRTPBIN, send_rtp_sink_temp, NULL, NULL);
-  video_queue2_srcPad = gst_element_get_static_pad(data.video_queue_2, "src");
 
+  send_rtp_sink_temp = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "send_rtp_sink_%d");
+  send_rtp_sink0 = gst_element_request_pad (data.serverRTPBIN, send_rtp_sink_temp, NULL, NULL);
+  g_print ("Obtained request pad %s for send_rtp_sink !.\n", gst_pad_get_name (send_rtp_sink0));
+  video_queue2_srcPad = gst_element_get_static_pad(data.video_queue_2, "src");
   send_rtp_sink1 = gst_element_request_pad (data.serverRTPBIN, send_rtp_sink_temp, NULL, NULL);
+  g_print ("Obtained request pad %s for send_rtp_sink !.\n", gst_pad_get_name (send_rtp_sink1));
   audio_queue2_srcPad = gst_element_get_static_pad(data.audio_queue_2, "src");
 
 
   send_rtcp_src_temp = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "send_rtcp_src_%d");
-
   send_rtcp_src0 = gst_element_request_pad(data.serverRTPBIN, send_rtcp_src_temp, NULL, NULL);
+  g_print ("Obtained request pad %s for send_rtcp_src !.\n", gst_pad_get_name (send_rtcp_src0));
   udpsink_rtcp0_sink = gst_element_get_static_pad(data.udpsink_rtcp0, "sink");
-
   send_rtcp_src1 = gst_element_request_pad(data.serverRTPBIN, send_rtcp_src_temp, NULL, NULL);
+  g_print ("Obtained request pad %s for send_rtcp_src !.\n", gst_pad_get_name (send_rtcp_src1));
   udpsink_rtcp1_sink = gst_element_get_static_pad(data.udpsink_rtcp1, "sink");
 
 
   recv_rtcp_sink_temp = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "recv_rtcp_sink_%d");
-
   recv_rtcp_sink0 = gst_element_request_pad(data.serverRTPBIN, recv_rtcp_sink_temp ,NULL, NULL);
+  g_print ("Obtained request pad %s for recv_rtcp_sink !.\n", gst_pad_get_name (recv_rtcp_sink0));
   udpsrc_rtcp0_src = gst_element_get_static_pad(data.udpsrc_rtcp0, "src");
-
   recv_rtcp_sink1 = gst_element_request_pad(data.serverRTPBIN, recv_rtcp_sink_temp ,NULL, NULL);
+  g_print ("Obtained request pad %s for recv_rtcp_sink !.\n", gst_pad_get_name (recv_rtcp_sink1));
   udpsrc_rtcp1_src = gst_element_get_static_pad(data.udpsrc_rtcp1, "src");
 
 
@@ -319,7 +317,7 @@ int main(int argc, char *argv[]) {
   gst_object_unref (udpsrc_rtcp1_src);
 
   g_signal_connect (data.demuxer, "pad-added", G_CALLBACK (demuxer_pad_added_handler), &data);
-  g_signal_connect (data.serverRTPBIN, "pad-added", G_CALLBACK (rtpbin_pad_added_handler), &data);
+  // g_signal_connect (data.serverRTPBIN, "pad-added", G_CALLBACK (rtpbin_pad_added_handler), &data);
 
   ret=gst_element_set_state(data.serverPipeline, GST_STATE_PLAYING);
 
@@ -417,7 +415,6 @@ static void demuxer_pad_added_handler (GstElement *src, GstPad *new_pad, CustomD
 
   if (g_str_has_prefix (new_pad_type, "audio")) 
   {
-    g_print ("  It has type '%s' \n", new_pad_type);
     ret = gst_pad_link (new_pad, audio_queue_sink_pad);
     if (GST_PAD_LINK_FAILED (ret)) 
     {
@@ -431,7 +428,6 @@ static void demuxer_pad_added_handler (GstElement *src, GstPad *new_pad, CustomD
   // else if (g_str_has_prefix (new_pad_type, "image"))
   else
   {
-    g_print ("  It has type '%s' \n", new_pad_type);
     ret = gst_pad_link (new_pad, video_queue_sink_pad);
     if (GST_PAD_LINK_FAILED (ret)) 
     {
@@ -476,37 +472,34 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
       new_pad_struct = gst_caps_get_structure (new_pad_caps, 0);
       new_pad_type = gst_structure_get_name (new_pad_struct);
 
-      g_print ("  It has type '%s' \n", new_pad_type);
-
-      if (strstr(new_pad_type, "0")) 
+      if(strstr(GST_PAD_NAME (new_pad), "send_rtp_src"))
       {
-        ret = gst_pad_link (new_pad, udpsink_rtp0_sink);
-        if (GST_PAD_LINK_FAILED (ret)) 
-        {
-          g_print ("  Type is '%s' but link failed.\n", new_pad_type);
-        } 
-        else 
-        {
-          g_print ("  Link succeeded (type '%s').\n", new_pad_type);
-        }
-      }
-      else if(strstr(new_pad_type, "1"))
-      {
-        g_print ("  It has type '%s' \n", new_pad_type);
-        ret = gst_pad_link (new_pad, udpsink_rtp1_sink);
-        if (GST_PAD_LINK_FAILED (ret)) 
-        {
-          g_print ("  Type is '%s' but link failed.\n", new_pad_type);
-        } 
-        else 
-        {
-          g_print ("  Link succeeded (type '%s').\n", new_pad_type);
-        }
-
-      }
-      else
-      {
-          fprintf(stderr, "Unknown pad found!\n" );
+          g_print ("  It has type '%s' \n", new_pad_type);
+          if(strstr(GST_PAD_NAME(new_pad), "0"))
+          {
+               ret = gst_pad_link (new_pad, udpsink_rtp0_sink);
+               if (GST_PAD_LINK_FAILED (ret)) 
+               {
+                   g_print ("  New pad is '%s' but link failed.\n", GST_PAD_NAME (new_pad));
+               } 
+               else 
+               {
+                   g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad) );
+               }
+          }
+          else if(strstr(GST_PAD_NAME(new_pad), "1"))
+          {
+               ret = gst_pad_link (new_pad, udpsink_rtp1_sink);
+               if (GST_PAD_LINK_FAILED (ret)) 
+               {
+                   g_print ("  New pad is '%s' but link failed.\n", GST_PAD_NAME (new_pad));
+               } 
+               else 
+               {
+                   g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad));
+               }
+          }
+          
       }
 
     exit:
@@ -545,50 +538,6 @@ static void find_tag_foreach (const GstTagList *tags, const gchar *tag, gpointer
   free(str);
   g_value_unset (&val);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
