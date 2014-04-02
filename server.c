@@ -25,14 +25,21 @@ gchar* container_format=NULL;
 
 
 typedef struct _CustomData {
-  GstElement *pipeline;
+  GstElement *serverPipeline;
   GstElement *filesrc;
   GstElement *demuxer;
   GstElement *video_filter;
   GstElement *audio_filter;
+  GstElement *audio_queue_1, *video_queue_1;
   GstElement *video_decoder, *audio_decoder;
-  GstElement *audio_queue;
-  GstElement *video_queue;
+
+  GstElement *videorate_controller, *audiorate_controller;
+  GstElement *videoPayloader, *audioPayloader;
+  GstElement *audio_queue_2, *video_queue_2;
+
+  GstElement *serverRTPBIN;
+  GstElement *udpsink_rtp0, *udpsink_rtp1, *udpsink_rtcp0, *udpsink_rtcp1 ;
+  GstElement *udpsrc_rtcp0, *udpsrc_rtcp1 ;
   GstElement *video_sink, *audio_sink;
   GstDiscoverer *discoverer;
 } CustomData;
@@ -112,7 +119,7 @@ int main(int argc, char *argv[]) {
   
   /* Create pipeline and attach a callback to it's
    * message bus */
-  data.pipeline = gst_pipeline_new("player");
+  data.serverPipeline = gst_pipeline_new("server");
   
   /* Create elements */
   data.filesrc = gst_element_factory_make("filesrc", "filesrc");
@@ -130,8 +137,8 @@ int main(int argc, char *argv[]) {
   {
     printf("unknown file type !!!\n");
     if(FILE_LOCATION) free(FILE_LOCATION);
-    gst_element_set_state (data.pipeline, GST_STATE_NULL);
-    gst_object_unref (data.pipeline);
+    gst_element_set_state (data.serverPipeline, GST_STATE_NULL);
+    gst_object_unref (data.serverPipeline);
   }
 
   if(strstr (video_codec,"MPEG"))
@@ -143,7 +150,6 @@ int main(int argc, char *argv[]) {
   else if(strstr (video_codec,"JPEG") ){
     printf("JPEG video\n");
     data.video_decoder = gst_element_factory_make("jpegdec", "video_decoder");
-
   }
   else{
     g_print("unsupported video type!\n");
@@ -168,15 +174,15 @@ int main(int argc, char *argv[]) {
   }
 
 
-  data.audio_queue = gst_element_factory_make("queue", "audio_queue");
-  data.video_queue = gst_element_factory_make("queue", "video_queue");
+  data.audio_queue_1 = gst_element_factory_make("queue", "audio_queue_1");
+  data.video_queue_1 = gst_element_factory_make("queue", "video_queue_1");
   data.video_sink = gst_element_factory_make("xvimagesink", "video_sink");
   data.audio_sink = gst_element_factory_make("autoaudiosink","audio_sink");
 
 
   /* Check that elements are correctly initialized */
-  if(!(data.pipeline && data.filesrc && data.demuxer && data.video_decoder && data.audio_decoder &&
-       data.audio_queue && data.video_queue && data.video_sink && data.audio_sink))
+  if(!(data.serverPipeline && data.filesrc && data.demuxer && data.video_decoder && data.audio_decoder &&
+       data.audio_queue_1 && data.video_queue_1 && data.video_sink && data.audio_sink))
   {
     g_critical("Couldn't create pipeline elements");
     return FALSE;
@@ -186,41 +192,41 @@ int main(int argc, char *argv[]) {
 
   /* Add elements to the pipeline. This has to be done prior to
    * linking them */
-  gst_bin_add_many(GST_BIN(data.pipeline),data.filesrc, data.demuxer, data.video_decoder, data.audio_decoder,
-       data.audio_queue, data.video_queue, data.video_sink, data.audio_sink, NULL);
+  gst_bin_add_many(GST_BIN(data.serverPipeline),data.filesrc, data.demuxer, data.video_decoder, data.audio_decoder,
+       data.audio_queue_1, data.video_queue_1, data.video_sink, data.audio_sink, NULL);
 
 
   if(!gst_element_link_many(data.filesrc, data.demuxer ,NULL))
   {
-    gst_object_unref(data.pipeline);
+    gst_object_unref(data.serverPipeline);
     return FALSE;
   }
 
-  if(!gst_element_link_many(data.video_queue , data.video_decoder, data.video_sink, NULL))
+  if(!gst_element_link_many(data.video_queue_1 , data.video_decoder, data.video_sink, NULL))
   {
     g_printerr("video_decoder, queue, and sink cannot be linked!.\n");
-    gst_object_unref (data.pipeline);
+    gst_object_unref (data.serverPipeline);
     return FALSE;
   }
-  if(!gst_element_link_many( data.audio_queue, data.audio_decoder, data.audio_sink, NULL))
+  if(!gst_element_link_many( data.audio_queue_1, data.audio_decoder, data.audio_sink, NULL))
   {
     g_printerr("audio_decoder, queue, and sink cannot be linked!.\n");
-    gst_object_unref (data.pipeline);
+    gst_object_unref (data.serverPipeline);
     return FALSE;
   }
 
   g_signal_connect (data.demuxer, "pad-added", G_CALLBACK (pad_added_handler), &data);
 
-  ret=gst_element_set_state(data.pipeline, GST_STATE_PLAYING);
+  ret=gst_element_set_state(data.serverPipeline, GST_STATE_PLAYING);
 
   if (ret == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the pipeline to the playing state.\n");
-    gst_object_unref (data.pipeline);
+    gst_object_unref (data.serverPipeline);
     return -1;
   }
 
   /* Listen to the bus */
-  bus = gst_element_get_bus (data.pipeline);
+  bus = gst_element_get_bus (data.serverPipeline);
   do {
     msg = gst_bus_timed_pop_filtered (bus, GST_CLOCK_TIME_NONE,
         GST_MESSAGE_STATE_CHANGED | GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
@@ -244,7 +250,7 @@ int main(int argc, char *argv[]) {
           break;
         case GST_MESSAGE_STATE_CHANGED:
           /* We are only interested in state-changed messages from the pipeline */
-          if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data.pipeline)) {
+          if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data.serverPipeline)) {
             GstState old_state, new_state, pending_state;
             gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
             g_print ("Pipeline state changed from %s to %s:\n",
@@ -262,8 +268,8 @@ int main(int argc, char *argv[]) {
 
   /* Free resources */
   gst_object_unref (bus);
-  gst_element_set_state (data.pipeline, GST_STATE_NULL);
-  gst_object_unref (data.pipeline);
+  gst_element_set_state (data.serverPipeline, GST_STATE_NULL);
+  gst_object_unref (data.serverPipeline);
   return 0;
 }
    
@@ -297,8 +303,8 @@ static void find_tag_foreach (const GstTagList *tags, const gchar *tag, gpointer
 /*
 /* This function will be called by the pad-added signal */
 static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
-  GstPad *video_queue_sink_pad = gst_element_get_static_pad (data->video_queue, "sink");
-  GstPad *audio_queue_sink_pad = gst_element_get_static_pad (data->audio_queue, "sink");
+  GstPad *video_queue_1_sink_pad = gst_element_get_static_pad (data->video_queue_1, "sink");
+  GstPad *audio_queue_1_sink_pad = gst_element_get_static_pad (data->audio_queue_1, "sink");
 
   GstPadLinkReturn ret;
   GstCaps *new_pad_caps = NULL;
@@ -306,7 +312,7 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
   const gchar *new_pad_type = NULL;
    
   g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
-  if (gst_pad_is_linked(video_queue_sink_pad) && gst_pad_is_linked(audio_queue_sink_pad)) {
+  if (gst_pad_is_linked(video_queue_1_sink_pad) && gst_pad_is_linked(audio_queue_1_sink_pad)) {
     g_print ("  We are already linked. Ignoring.\n");
     goto exit;
   }
@@ -321,7 +327,7 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
   if (g_str_has_prefix (new_pad_type, "audio")) 
   {
     g_print ("  It has type '%s' \n", new_pad_type);
-    ret = gst_pad_link (new_pad, audio_queue_sink_pad);
+    ret = gst_pad_link (new_pad, audio_queue_1_sink_pad);
     if (GST_PAD_LINK_FAILED (ret)) 
     {
       g_print ("  Type is '%s' but link failed.\n", new_pad_type);
@@ -335,7 +341,7 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
   else
   {
     g_print ("  It has type '%s' \n", new_pad_type);
-    ret = gst_pad_link (new_pad, video_queue_sink_pad);
+    ret = gst_pad_link (new_pad, video_queue_1_sink_pad);
     if (GST_PAD_LINK_FAILED (ret)) 
     {
       g_print ("  Type is '%s' but link failed.\n", new_pad_type);
@@ -353,8 +359,8 @@ exit:
     gst_caps_unref (new_pad_caps);
    
   /* Unreference the sink pad */
-  gst_object_unref (video_queue_sink_pad);
-  gst_object_unref (audio_queue_sink_pad);
+  gst_object_unref (video_queue_1_sink_pad);
+  gst_object_unref (audio_queue_1_sink_pad);
 }
 
 static gboolean print_field (GQuark field, const GValue * value, gpointer pfx) {
