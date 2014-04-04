@@ -55,6 +55,7 @@ typedef struct _CustomData {
 
 } CustomData;
 
+
 static void demuxer_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointer user_data);
@@ -201,10 +202,10 @@ int main(int argc, char *argv[]) {
   }
 
   g_object_set(data.filesrc, "location", FILE_LOCATION, NULL);
-  g_object_set(data.udpsink_rtp0, "host", clientIP, "port", port_send_rtp_src0 ,NULL);
-  g_object_set(data.udpsink_rtp1, "host", clientIP, "port", port_send_rtp_src1 ,NULL);
-  g_object_set(data.udpsink_rtcp0, "host", clientIP, "port", port_send_rtcp_src0, NULL);
-  g_object_set(data.udpsink_rtcp1, "host", clientIP, "port", port_send_rtcp_src1, NULL);
+  g_object_set(data.udpsink_rtp0, /*"host", clientIP,*/ "port", port_send_rtp_src0 ,NULL);
+  g_object_set(data.udpsink_rtp1, /*"host", clientIP, */"port", port_send_rtp_src1 ,NULL);
+  g_object_set(data.udpsink_rtcp0, /*"host", clientIP,*/ "port", port_send_rtcp_src0, "async", FALSE, "sync", FALSE,  NULL);
+  g_object_set(data.udpsink_rtcp1, /*"host", clientIP,*/ "port", port_send_rtcp_src1, "async", FALSE, "sync", FALSE, NULL);
   g_object_set(data.udpsrc_rtcp0 , "port", port_recv_rtcp_sink0 , NULL);
   g_object_set(data.udpsrc_rtcp1 , "port", port_recv_rtcp_sink1 , NULL);
 

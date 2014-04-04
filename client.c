@@ -25,6 +25,9 @@
 #define port_recv_rtcp_sink1 5003
 #define port_send_rtcp_src0 5005
 #define port_send_rtcp_src1 5007
+#define VIDEO_CAPS "application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)JPEG"
+#define AUDIO_CAPS "application/x-rtp,media=(string)audio,clock-rate=(int)8000,encoding-name=(string)VORBIS"
+
 
 typedef struct _CustomData {
   GstElement *clientPipeline;
@@ -46,15 +49,14 @@ typedef struct _CustomData {
 
 } CustomData;
 
+
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 
 int main(int argc, char *argv[]) {
 
   CustomData data;
 
-   memset (&data, 0, sizeof (data));
-  gst_init(&argc, &argv);
-  
+
   /*Pads for requesting*/
   GstPadTemplate *recv_rtp_sink_temp, *recv_rtcp_sink_temp, *send_rtcp_src_temp;
   GstPad *recv_rtp_sink0, *recv_rtp_sink1;
@@ -64,6 +66,8 @@ int main(int argc, char *argv[]) {
   /*static pads*/
   GstPad *udpsrc_rtp0_src, *udpsrc_rtp1_src, *udpsrc_rtcp0_src, *udpsrc_rtcp1_src;
   GstPad *udpsink_rtcp0_sink, *udpsink_rtcp1_sink ;
+  GstCaps *videocaps; 
+  GstCaps *audiocaps; 
 
   GstBus *bus;
   GstMessage *msg;
@@ -71,6 +75,10 @@ int main(int argc, char *argv[]) {
 
   gboolean terminate = FALSE;
  
+
+  memset (&data, 0, sizeof (data));
+  gst_init(&argc, &argv);
+  
   /* Create pipeline and attach a callback to it's
    * message bus */
   data.clientPipeline = gst_pipeline_new("client");
@@ -115,15 +123,18 @@ int main(int argc, char *argv[]) {
     return FALSE;
   }
 
+  videocaps = gst_caps_from_string(VIDEO_CAPS);
+  audiocaps = gst_caps_from_string(AUDIO_CAPS);
 
-  g_object_set(data.udpsrc_rtp0, "port", port_recv_rtp_sink0 ,NULL);
-  g_object_set(data.udpsrc_rtp1, "port", port_recv_rtp_sink1 ,NULL);
+
+  g_object_set(data.udpsrc_rtp0, "caps", videocaps, "port", port_recv_rtp_sink0,NULL);
+  g_object_set(data.udpsrc_rtp1,  "caps", audiocaps, "port", port_recv_rtp_sink1 ,NULL);
 
   g_object_set(data.udpsrc_rtcp0, "port", port_recv_rtcp_sink0 ,NULL);
   g_object_set(data.udpsrc_rtcp1, "port", port_recv_rtcp_sink1 ,NULL);
 
-  g_object_set(data.udpsink_rtcp0, /*"host", serverIP, */"port", port_send_rtcp_src0, NULL);
-  g_object_set(data.udpsink_rtcp1, /*"host", serverIP,*/ "port", port_send_rtcp_src1, NULL);
+  g_object_set(data.udpsink_rtcp0, /*"host", serverIP, */"port", port_send_rtcp_src0, "async", FALSE, "sync", FALSE, NULL);
+  g_object_set(data.udpsink_rtcp1, /*"host", serverIP,*/ "port", port_send_rtcp_src1, "async", FALSE, "sync", FALSE, NULL);
 
 
     data.video_caps = gst_caps_new_simple("image/jpeg",
@@ -325,6 +336,15 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                else 
                {
                    g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad) );
+                   int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+
+                  if (x == GST_STATE_CHANGE_FAILURE) {
+                    g_printerr ("Unable to set the pipeline to the playing state.\n");
+                    gst_object_unref (data->clientPipeline);
+                    goto exit;
+                  }
+
+
                }
           }
           else if(strstr(GST_PAD_NAME(new_pad), "recv_rtp_src_1"))
@@ -338,8 +358,15 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                {
                    g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad));
                }
+                   int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+
+                  if (x == GST_STATE_CHANGE_FAILURE) {
+                    g_printerr ("Unable to set the pipeline to the playing state.\n");
+                    gst_object_unref (data->clientPipeline);
+                    goto exit;
+                  }
           }
-          
+
       }
 
     exit:
