@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
   /* Check that elements are correctly initialized */
   if(!(data.serverPipeline && data.filesrc && data.demuxer && data.audio_decoder && 
        data.audio_queue_1 && data.video_queue_1 && data.audio_queue_2 && data.video_queue_2 && 
-       data.videorate_controller && data.audiorate_controller && data.videoPayloader && data.audioPayloader &&
+       /*data.videorate_controller &&*/ data.audiorate_controller && data.videoPayloader && data.audioPayloader &&
        data.serverRTPBIN && data.udpsink_rtp0 && data.udpsink_rtp1 && data.udpsink_rtcp0 && data.udpsink_rtcp1 &&
        data.udpsrc_rtcp0 && data.udpsrc_rtcp1 ))
   {
@@ -202,9 +202,9 @@ int main(int argc, char *argv[]) {
   }
 
   g_object_set(data.filesrc, "location", FILE_LOCATION, NULL);
-  g_object_set(data.udpsink_rtp0, /*"host", clientIP,*/ "port", port_send_rtp_src0 ,NULL);
-  g_object_set(data.udpsink_rtp1, /*"host", clientIP, */"port", port_send_rtp_src1 ,NULL);
-  g_object_set(data.udpsink_rtcp0, /*"host", clientIP,*/ "port", port_send_rtcp_src0, "async", FALSE, "sync", FALSE,  NULL);
+  g_object_set(data.udpsink_rtp0, /*"host", clientIP,*/ "port", port_send_rtp_src0 ,/*"async", FALSE, "sync",TRUE ,*/NULL);
+  g_object_set(data.udpsink_rtp1, /*"host", clientIP, */"port", port_send_rtp_src1 , NULL);
+  g_object_set(data.udpsink_rtcp0, /*"host", clientIP,*/ "port", port_send_rtcp_src0, "async", FALSE, "sync", FALSE, NULL);
   g_object_set(data.udpsink_rtcp1, /*"host", clientIP,*/ "port", port_send_rtcp_src1, "async", FALSE, "sync", FALSE, NULL);
   g_object_set(data.udpsrc_rtcp0 , "port", port_recv_rtcp_sink0 , NULL);
   g_object_set(data.udpsrc_rtcp1 , "port", port_recv_rtcp_sink1 , NULL);

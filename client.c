@@ -49,12 +49,14 @@ typedef struct _CustomData {
 
 } CustomData;
 
+int readyToPlay ;
 
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 
 int main(int argc, char *argv[]) {
 
   CustomData data;
+  readyToPlay = 0;
 
 
   /*Pads for requesting*/
@@ -127,14 +129,14 @@ int main(int argc, char *argv[]) {
   audiocaps = gst_caps_from_string(AUDIO_CAPS);
 
 
-  g_object_set(data.udpsrc_rtp0, "caps", videocaps, "port", port_recv_rtp_sink0,NULL);
-  g_object_set(data.udpsrc_rtp1,  "caps", audiocaps, "port", port_recv_rtp_sink1 ,NULL);
+  g_object_set(data.udpsrc_rtp0, "caps", videocaps, "port", port_recv_rtp_sink0,   NULL);
+  g_object_set(data.udpsrc_rtp1,  "caps", audiocaps, "port", port_recv_rtp_sink1,  NULL);
 
   g_object_set(data.udpsrc_rtcp0, "port", port_recv_rtcp_sink0 ,NULL);
   g_object_set(data.udpsrc_rtcp1, "port", port_recv_rtcp_sink1 ,NULL);
 
   g_object_set(data.udpsink_rtcp0, /*"host", serverIP, */"port", port_send_rtcp_src0, "async", FALSE, "sync", FALSE, NULL);
-  g_object_set(data.udpsink_rtcp1, /*"host", serverIP,*/ "port", port_send_rtcp_src1, "async", FALSE, "sync", FALSE, NULL);
+  g_object_set(data.udpsink_rtcp1, /*"host", serverIP,*/ "port", port_send_rtcp_src1, "async", FALSE, "sync", FALSE,  NULL);
 
 
     data.video_caps = gst_caps_new_simple("image/jpeg",
@@ -271,6 +273,11 @@ int main(int argc, char *argv[]) {
                 gst_element_state_get_name (old_state), gst_element_state_get_name (new_state));
           }
           break;
+        case GST_MESSAGE_CLOCK_LOST:
+          g_print ("Clock is lost\n") ;
+          gst_element_set_state (data.clientPipeline, GST_STATE_PAUSED);
+          gst_element_set_state (data.clientPipeline, GST_STATE_PLAYING);
+          break;
         default:
           /* We should not reach here */
           g_printerr ("Unexpected message received.\n");
@@ -293,7 +300,6 @@ int main(int argc, char *argv[]) {
   gst_object_unref (send_rtcp_src1);
   gst_object_unref (recv_rtcp_sink0);
   gst_object_unref (recv_rtcp_sink1);
-
 
   gst_object_unref (bus);
   gst_element_set_state (data.clientPipeline, GST_STATE_NULL);
@@ -335,16 +341,22 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                } 
                else 
                {
-                   g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad) );
-                   int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
-
-                  if (x == GST_STATE_CHANGE_FAILURE) {
-                    g_printerr ("Unable to set the pipeline to the playing state.\n");
-                    gst_object_unref (data->clientPipeline);
-                    goto exit;
-                  }
-
-
+                   g_print ("  Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad) );
+                   GstState curr = GST_STATE(data->clientPipeline) ;
+                   g_print("And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
+                   if(curr != GST_STATE_PLAYING)
+                   {
+                      gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
+                     int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+                     if (x == GST_STATE_CHANGE_FAILURE) 
+                     {
+                      g_printerr ("Inside handler, unable to set the pipeline to the playing state.\n");
+                      gst_object_unref (data->clientPipeline);
+                      goto exit;
+                     }
+                     g_print("After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
+  
+                   }            
                }
           }
           else if(strstr(GST_PAD_NAME(new_pad), "recv_rtp_src_1"))
@@ -356,17 +368,24 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                } 
                else 
                {
-                   g_print ("  Link succeeded (pad '%s').\n", GST_PAD_NAME (new_pad));
-               }
-                   int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
-
-                  if (x == GST_STATE_CHANGE_FAILURE) {
-                    g_printerr ("Unable to set the pipeline to the playing state.\n");
-                    gst_object_unref (data->clientPipeline);
-                    goto exit;
+                   g_print ("  Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad));
+                   GstState curr = GST_STATE(data->clientPipeline) ;
+                   g_print("And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
+                   if(curr != GST_STATE_PLAYING)
+                   {
+                     gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
+                     int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+                     if (x == GST_STATE_CHANGE_FAILURE) 
+                     {
+                      g_printerr ("Inside handler, unable to set the pipeline to the playing state.\n");
+                      gst_object_unref (data->clientPipeline);
+                      goto exit;
+                     }
+                     g_print("After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
+  
                   }
+              }
           }
-
       }
 
     exit:
