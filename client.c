@@ -49,15 +49,12 @@ typedef struct _CustomData {
 
 } CustomData;
 
-int readyToPlay ;
 
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 
 int main(int argc, char *argv[]) {
 
   CustomData data;
-  readyToPlay = 0;
-
 
   /*Pads for requesting*/
   GstPadTemplate *recv_rtp_sink_temp, *recv_rtcp_sink_temp, *send_rtcp_src_temp;
@@ -145,7 +142,7 @@ int main(int argc, char *argv[]) {
       "height", G_TYPE_INT, 480,
       NULL);
 
-     data.audio_caps = gst_caps_new_simple("audio/x-raw-int",
+     data.audio_caps = gst_caps_new_simple("audio/x-raw-float",
       "rate", G_TYPE_INT, 8000,
       "channels", G_TYPE_INT, 2,
       "depths", G_TYPE_INT, 16,

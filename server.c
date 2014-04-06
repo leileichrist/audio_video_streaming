@@ -39,6 +39,7 @@ typedef struct _CustomData {
   GstElement *audio_filter;
   GstElement *audio_queue_1, *video_queue_1;
   GstElement *video_decoder, *audio_decoder;
+  GstElement *audio_encoder;
 
   GstElement *videorate_controller, *audiorate_controller;
   GstElement *videoPayloader, *audioPayloader;
@@ -51,10 +52,7 @@ typedef struct _CustomData {
 
   GstCaps *video_caps;
   GstCaps *audio_caps;
-
-
 } CustomData;
-
 
 static void demuxer_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
@@ -166,6 +164,8 @@ int main(int argc, char *argv[]) {
   data.video_decoder = gst_element_factory_make("jpegdec", "video_decoder");
   data.audio_decoder = gst_element_factory_make("vorbisdec", "audio_decoder");    
 
+  data.audio_encoder = gst_element_factory_make("vorbisenc", "audio_encoder");    
+
   data.audio_queue_1 = gst_element_factory_make("queue", "audio_queue_1");
   data.video_queue_1 = gst_element_factory_make("queue", "video_queue_1");
 
@@ -191,9 +191,9 @@ int main(int argc, char *argv[]) {
 
 
   /* Check that elements are correctly initialized */
-  if(!(data.serverPipeline && data.filesrc && data.demuxer && data.audio_decoder && 
+  if(!(data.serverPipeline && data.filesrc && data.demuxer && data.audio_decoder && data.audio_encoder,
        data.audio_queue_1 && data.video_queue_1 && data.audio_queue_2 && data.video_queue_2 && 
-       /*data.videorate_controller &&*/ data.audiorate_controller && data.videoPayloader && data.audioPayloader &&
+       data.videorate_controller && data.audiorate_controller && data.videoPayloader && data.audioPayloader &&
        data.serverRTPBIN && data.udpsink_rtp0 && data.udpsink_rtp1 && data.udpsink_rtcp0 && data.udpsink_rtcp1 &&
        data.udpsrc_rtcp0 && data.udpsrc_rtcp1 ))
   {
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
       "height", G_TYPE_INT, 480,
       NULL);
 
-     data.audio_caps = gst_caps_new_simple("audio/x-raw-int",
+    data.audio_caps = gst_caps_new_simple("audio/x-raw-float",
       "rate", G_TYPE_INT, 8000,
       "channels", G_TYPE_INT, 2,
       "depths", G_TYPE_INT, 16,
@@ -225,9 +225,8 @@ int main(int argc, char *argv[]) {
   /* Add elements to the pipeline. This has to be done prior to
    * linking them */
   gst_bin_add_many(GST_BIN(data.serverPipeline),data.filesrc, data.demuxer, data.audio_queue_1, 
-       /*data.audio_decoder,data.audiorate_controller,*/
-       data.video_queue_1, data.audio_queue_2 , data.video_queue_2 , 
-       data.videorate_controller, data.videoPayloader , data.audioPayloader ,
+       data.video_queue_1, data.audio_decoder, data.audiorate_controller, data.videorate_controller, 
+       data.audio_encoder, data.videoPayloader, data.audioPayloader, data.audio_queue_2 , data.video_queue_2 , 
        data.serverRTPBIN , data.udpsink_rtp0 , data.udpsink_rtp1 , data.udpsink_rtcp0 , data.udpsink_rtcp1 ,
        data.udpsrc_rtcp0 , data.udpsrc_rtcp1, NULL);
 
@@ -236,7 +235,6 @@ int main(int argc, char *argv[]) {
     gst_object_unref(data.serverPipeline);
     return FALSE;
   }
-  
   if(!gst_element_link_filtered(data.video_queue_1, data.videorate_controller, data.video_caps))
   {
     g_printerr("queue, and videorate cannot be linked!.\n");
@@ -249,13 +247,24 @@ int main(int argc, char *argv[]) {
     gst_object_unref (data.serverPipeline);
     exit(1);
   }
-  if(!gst_element_link_many(data.audio_queue_1, data.audioPayloader, data.audio_queue_2, NULL))
+  if(!gst_element_link_many(data.audio_queue_1, data.audio_decoder, NULL))
   {
     g_printerr("audio queue and audio decoder cannot be linked!.\n");
     gst_object_unref (data.serverPipeline);
     exit(1);
   }
-
+  if(!gst_element_link_filtered(data.audio_decoder, data.audiorate_controller, data.audio_caps))
+  {
+    g_printerr("audio decoder and audio rate cannot be linked!.\n");
+    gst_object_unref (data.serverPipeline);
+    exit(1);
+  }
+  if(!gst_element_link_many(data.audiorate_controller, data.audio_encoder, data.audioPayloader, data.audio_queue_2, NULL))
+  {
+    g_printerr("audiorate, audio_encoder, and audioPayloader cannot be linked!.\n");
+    gst_object_unref (data.serverPipeline);
+    exit(1);
+  }
 
   /*manually request pads and link them*/
   //   /*Pads for requesting*/
@@ -539,14 +548,6 @@ static void find_tag_foreach (const GstTagList *tags, const gchar *tag, gpointer
   free(str);
   g_value_unset (&val);
 }
-
-
-
-
-
-
-
-
 
 
 

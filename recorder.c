@@ -30,7 +30,6 @@ typedef struct _CustomData {
   GstElement *screen_queue_play, *video_sink;
   GstElement *audio_queue;
   GstElement *audio_encoder;
-  // GstElement *audio_sink;
   GstElement *video_tee;
   GstCaps *caps;
   GstCaps *audio_caps;
