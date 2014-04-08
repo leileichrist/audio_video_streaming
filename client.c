@@ -310,6 +310,7 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
       GstPad *audio_queue_sinkPad = gst_element_get_static_pad (data->audio_queue_1, "sink");
 
       GstPadLinkReturn ret;
+      int result;
       GstCaps *new_pad_caps = NULL;
       GstStructure *new_pad_struct = NULL;
       const gchar *new_pad_type = NULL;
@@ -328,7 +329,8 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
 
        if(strstr(GST_PAD_NAME (new_pad), "recv_rtp_src"))
        {
-          g_print ("  It has type '%s' \n", new_pad_type);
+          g_print("Before setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
+
           if(strstr(GST_PAD_NAME(new_pad), "recv_rtp_src_0"))
           {
                ret = gst_pad_link (new_pad, video_queue_sinkPad);
@@ -338,22 +340,29 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                } 
                else 
                {
-                   g_print ("  Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad) );
+                   g_print ("<video> Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad) );
                    GstState curr = GST_STATE(data->clientPipeline) ;
-                   g_print("And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
-                   if(curr != GST_STATE_PLAYING)
+                   g_print("<video> And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
+                   if(gst_element_is_locked_state (data->clientPipeline))
                    {
-                      gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
-                     int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
-                     if (x == GST_STATE_CHANGE_FAILURE) 
-                     {
-                      g_printerr ("Inside handler, unable to set the pipeline to the playing state.\n");
-                      gst_object_unref (data->clientPipeline);
-                      goto exit;
-                     }
-                     g_print("After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
-  
-                   }            
+                      g_print("The current state is locked!\n");
+                   }
+                   // if(curr != GST_STATE_PLAYING)
+                   // {        
+                   //   result = gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
+                   //   gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+                   //   if (result == GST_STATE_CHANGE_FAILURE) 
+                   //   {
+                   //      g_printerr ("<video> Inside handler, unable to set the pipeline to the playing state.\n");
+                   //      gst_object_unref (data->clientPipeline);
+                   //      goto exit;
+                   //   }
+                   //   else if(result ==  GST_STATE_CHANGE_ASYNC)
+                   //   {
+                   //      g_print("<video> State will be set in another thread! \n");
+                   //   }
+                   //   g_print("<video> After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
+                   // }            
                }
           }
           else if(strstr(GST_PAD_NAME(new_pad), "recv_rtp_src_1"))
@@ -365,22 +374,30 @@ static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomDa
                } 
                else 
                {
-                   g_print ("  Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad));
+                   g_print ("<audio>  Link succeeded (pad '%s'). ", GST_PAD_NAME (new_pad));
                    GstState curr = GST_STATE(data->clientPipeline) ;
-                   g_print("And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
-                   if(curr != GST_STATE_PLAYING)
+                   g_print("<audio >And currrent state is : %s \n",gst_element_state_get_name (curr)) ;
+                   if(gst_element_is_locked_state (data->clientPipeline))
                    {
-                     gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
-                     int x=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
-                     if (x == GST_STATE_CHANGE_FAILURE) 
-                     {
-                      g_printerr ("Inside handler, unable to set the pipeline to the playing state.\n");
-                      gst_object_unref (data->clientPipeline);
-                      goto exit;
-                     }
-                     g_print("After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
+                      g_print("The current state is locked!\n");
+                   }
+                  //  if(curr != GST_STATE_PLAYING)
+                  //  {
+                  //    gst_element_set_state (data->clientPipeline, GST_STATE_PAUSED);
+                  //    result =gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING);
+                  //    if (result == GST_STATE_CHANGE_FAILURE) 
+                  //    {
+                  //       g_printerr ("<audio> Inside handler, unable to set the pipeline to the playing state.\n");
+                  //       gst_object_unref (data->clientPipeline);
+                  //       goto exit;
+                  //    }
+                  //    else if(result ==  GST_STATE_CHANGE_ASYNC)
+                  //    {
+                  //       g_print("<audio> State will be set in another thread! \n");
+                  //    }
+                  //    g_print("<audio >After setting state to play, state is : %s \n",gst_element_state_get_name (GST_STATE(data->clientPipeline))) ;    
   
-                  }
+                  // }
               }
           }
       }

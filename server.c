@@ -31,7 +31,6 @@ gchar* video_codec=NULL;
 gchar* audio_codec=NULL;
 gchar* container_format=NULL;
 
-
 typedef struct _CustomData {
   GstElement *serverPipeline;
   GstElement *filesrc;
@@ -288,7 +287,6 @@ int main(int argc, char *argv[]) {
   g_print ("Obtained request pad %s for send_rtp_sink !.\n", gst_pad_get_name (send_rtp_sink1));
   audio_queue2_srcPad = gst_element_get_static_pad(data.audio_queue_2, "src");
 
-
   send_rtcp_src_temp = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "send_rtcp_src_%d");
   send_rtcp_src0 = gst_element_request_pad(data.serverRTPBIN, send_rtcp_src_temp, NULL, NULL);
   g_print ("Obtained request pad %s for send_rtcp_src !.\n", gst_pad_get_name (send_rtcp_src0));
@@ -297,7 +295,6 @@ int main(int argc, char *argv[]) {
   g_print ("Obtained request pad %s for send_rtcp_src !.\n", gst_pad_get_name (send_rtcp_src1));
   udpsink_rtcp1_sink = gst_element_get_static_pad(data.udpsink_rtcp1, "sink");
 
-
   recv_rtcp_sink_temp = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(data.serverRTPBIN), "recv_rtcp_sink_%d");
   recv_rtcp_sink0 = gst_element_request_pad(data.serverRTPBIN, recv_rtcp_sink_temp ,NULL, NULL);
   g_print ("Obtained request pad %s for recv_rtcp_sink !.\n", gst_pad_get_name (recv_rtcp_sink0));
@@ -305,7 +302,6 @@ int main(int argc, char *argv[]) {
   recv_rtcp_sink1 = gst_element_request_pad(data.serverRTPBIN, recv_rtcp_sink_temp ,NULL, NULL);
   g_print ("Obtained request pad %s for recv_rtcp_sink !.\n", gst_pad_get_name (recv_rtcp_sink1));
   udpsrc_rtcp1_src = gst_element_get_static_pad(data.udpsrc_rtcp1, "src");
-
 
   if (gst_pad_link (video_queue2_srcPad, send_rtp_sink0) != GST_PAD_LINK_OK ||
       gst_pad_link (audio_queue2_srcPad, send_rtp_sink1) != GST_PAD_LINK_OK ||

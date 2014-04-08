@@ -10,7 +10,7 @@ client: client.c
 	gcc client.c -o client `pkg-config --cflags --libs gstreamer-interfaces-0.10 gtk+-2.0 gstreamer-pbutils-0.10 gstreamer-0.10`
 
 send:
-	./server jvm.mkv
+	./server hello.mkv
 
 record:
 	./recorder j v m jvm
