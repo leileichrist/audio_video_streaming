@@ -114,12 +114,12 @@ CustomData* curr_data;
 
 void *listening_feedbacks(void *arg);
 void *RecvVideo(void *arg);
-static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
 static void create_ui (CustomData *data) ;
 static gboolean print_field (GQuark field, const GValue * value, gpointer pfx) ;
 static void print_caps (const GstCaps * caps, const gchar * pfx);
 static void print_pad_capabilities (GstElement *element, gchar *pad_name) ;
 static void rtpbin_pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data);
+static void rtpbin_pad_removed_handler(GstElement *src, GstPad *old_pad, CustomData *data);
 static void eos_cb (GstBus *bus, GstMessage *msg, CustomData *data) ;
 static void state_changed_cb (GstBus *bus, GstMessage *msg, CustomData *data) ;
 static gboolean refresh_ui (CustomData *data) ;
@@ -825,7 +825,6 @@ static void connect_cb(GtkButton *button,CustomData * data)
     return ;
   }
 
-
   gchar* mesg = NULL;
   gchar * ip = NULL;
   gchar * port = NULL;
@@ -883,20 +882,14 @@ static void connect_cb(GtkButton *button,CustomData * data)
   print_status(status_buf);
 
   g_object_set(data->udpsrc_rtp0, "caps", data->videocaps, "port", data->port_recv_rtp_sink0,   NULL);
-  g_object_set(data->udpsrc_rtp1,  "caps", data->audiocaps, "port", data->port_recv_rtp_sink1,  NULL);
   g_object_set(data->udpsrc_rtcp0, "port", data->port_recv_rtcp_sink0 ,NULL);
-  g_object_set(data->udpsrc_rtcp1, "port", data->port_recv_rtcp_sink1 ,NULL);
   g_object_set(data->udpsink_rtcp0, "host", (gchar*)serverIP.c_str(), "port", data->port_send_rtcp_src0, "async", FALSE, "sync", FALSE, NULL);
-  g_object_set(data->udpsink_rtcp1, "host", (gchar*)serverIP.c_str(), "port", data->port_send_rtcp_src1, "async", FALSE, "sync", FALSE,  NULL);
-
-
-  // g_object_get(data->udpsrc_rtp0, "port",  &d1,  NULL);
-  // g_object_get(data->udpsrc_rtp1, "port",  &d2,  NULL);
-  // g_object_get(data->udpsrc_rtcp0, "port", &d3 ,NULL);
-  // g_object_get(data->udpsrc_rtcp1, "port", &d4 ,NULL);
-  // g_object_get(data->udpsink_rtcp0, "host", &host, "port", &d5, NULL);
-  // g_object_get(data->udpsink_rtcp1, "port", &d6, NULL);
-  // printf("<client> after setting connecting address: %s, %d, %d, %d, %d, %d, %d\n", host,  d1,d2,d3,d4,d5,d6 );
+  if(data->mode == ACTIVE_MODE)
+  {
+    g_object_set(data->udpsrc_rtp1,  "caps", data->audiocaps, "port", data->port_recv_rtp_sink1,  NULL);
+    g_object_set(data->udpsrc_rtcp1, "port", data->port_recv_rtcp_sink1 ,NULL);
+    g_object_set(data->udpsink_rtcp1, "host", (gchar*)serverIP.c_str(), "port", data->port_send_rtcp_src1, "async", FALSE, "sync", FALSE,  NULL);
+  }
 
    GstStateChangeReturn  ret=gst_element_set_state(data->clientPipeline, GST_STATE_PLAYING );
    if (ret == GST_STATE_CHANGE_FAILURE) {
@@ -912,7 +905,6 @@ static void connect_cb(GtkButton *button,CustomData * data)
 
 static void check_cb1(GtkButton *button,CustomData * data)
 {
-    printf("check1\n");
     if(( GTK_TOGGLE_BUTTON(button)->active  ) )
     {
       gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON (data->check_button2), false );
@@ -928,7 +920,6 @@ static void check_cb1(GtkButton *button,CustomData * data)
 
 static void check_cb2(GtkButton *button,CustomData * data)
 {
-    printf("check2\n");
      if((GTK_TOGGLE_BUTTON(button)->active  ) )
     {
 
@@ -945,8 +936,6 @@ static void check_cb2(GtkButton *button,CustomData * data)
     }
 
 }
-
-
 
 static void pause_cb (GtkButton *button, CustomData *data)
 {
@@ -1008,8 +997,6 @@ static void rw_cb (GtkButton *button, CustomData *data)
   asprintf(&mesg, "%d %d %d", REWIND, data->clientport, BIND_WIDTH);
   printf("%s\n", mesg );
   sendMsg2Server(serverIP.c_str(), serverPort.c_str(), mesg);
-
-
 }
 
 /* This function is called when an End-Of-Stream message is posted on the bus.
@@ -1034,6 +1021,12 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, CustomData *data) {
   }
 }
  
+static void disconnect_from_network(CustomData* data)
+{
+   //to do: unlink video queue and audio queue from the RTP bin
+    return;
+}
+
 
 static void print_status(const char* inp)
 {

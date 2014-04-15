@@ -52,7 +52,7 @@
 
 #define HIGHFRAMERATE 500
 
-#define SERVER_MAX_BW 1500
+#define SERVER_MAX_BW 1500000
 
 #define LEVEL1BR 1000
 #define LEVEL2BR 344
@@ -374,9 +374,7 @@ gboolean process_message(queue<pthread_t*>& wq, struct sockaddr_storage * their_
             res_mode = atoi(++c);
       }
 
-       printf("!!receive command: cmd:%d port:%d bw:%d mode:%d res_mode:%d\n", cmd, port, bw, mode, res_mode );
-      // return TRUE;
-
+      printf("!!receive command: cmd:%d port:%d bw:%d mode:%d res_mode:%d\n", cmd, port, bw, mode, res_mode );
       switch(cmd)
       {
           //this case is for creating a new connection:
@@ -388,24 +386,22 @@ gboolean process_message(queue<pthread_t*>& wq, struct sockaddr_storage * their_
                   printf("Client exists!\n");
                   return FALSE;
               }
-              // NEED TO DO RESOURCE ADMISSION HERE, check the bind width!
-            
               if(res_mode == 0 )
               {
-                  if (ServerTempBW-LEVEL1BR>0)
+                  if(ServerTempBW-LEVEL1BR>0)
                   {
-                          ServerTempBW=ServerTempBW-LEVEL1BR;
-                          cout <<"accept the highest level BW to the client"<<endl;
-                          cout <<"Server temp Bindwidth:" << ServerTempBW <<endl;
-                          admissionProcess("Sresource.txt", LEVEL1BR);
-                          cout <<"findish change"<<endl;
-                          result = 0 ;
+                      ServerTempBW=ServerTempBW-LEVEL1BR;
+                      cout <<"accept the highest level BW to the client"<<endl;
+                      cout <<"Server temp Bindwidth:" << ServerTempBW <<endl;
+                      admissionProcess("Sresource.txt", LEVEL1BR);
+                      cout <<"findish change"<<endl;
+                      result = 0 ;
                   }
                   else
                   {
                      if (ServerTempBW-LEVEL2BR>0)
                      {
-                          res_mode=1;
+                         res_mode=1;
                          ServerTempBW=ServerTempBW-LEVEL2BR;
                          cout <<"server cannot satisfy the highest requirments, then negotation to second level"<<endl;
                          admissionProcess("Sresource.txt", LEVEL2BR);
@@ -450,7 +446,6 @@ gboolean process_message(queue<pthread_t*>& wq, struct sockaddr_storage * their_
               char* response = NULL;
               asprintf(&response, "%d %d", CONNECT, result);
               sendMsg2Client(data->clientip, to_string(data->clientport).c_str(), response);
-
               break;
           }
           case PASSIVE:
@@ -540,8 +535,8 @@ gboolean process_message(queue<pthread_t*>& wq, struct sockaddr_storage * their_
                   }
 
                   clients.erase(port);
+                  sendMsg2Client(data->clientip, to_string(data->clientport).c_str(), "5 0"); 
                   return TRUE;
-
               }
               if(GST_STATE(data->serverPipeline) == GST_STATE_READY)
               {
@@ -597,7 +592,6 @@ gboolean process_message(queue<pthread_t*>& wq, struct sockaddr_storage * their_
             return FALSE;
           }
       }
-      
       return TRUE;
 }
 
